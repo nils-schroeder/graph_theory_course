@@ -1,4 +1,5 @@
-from typing import Dict, List, Tuple
+import time
+from typing import Dict, List, Tuple, Callable
 
 import networkx as nx
 
@@ -61,3 +62,23 @@ def isomorphism_clustering(
         final_clusters.update(new_clusters)
 
     return final_clusters, isomorphism_check_count
+
+
+def calculate_reaction_center_invariants(
+        reaction_centers: Dict[str, nx.Graph],
+        invariant_functions: dict[str, Callable[[nx.Graph], ...]],
+) -> dict[str, dict[str, ...]]:
+    graph_invariant_values = dict()
+
+    for invariant_name, invariant_func in invariant_functions.items():
+        start_time = time.time()
+        graph_invariant_values[invariant_name] = {
+            "reactions": {}
+        }
+
+        for r_id, rc in reaction_centers.items():
+            graph_invariant_values[invariant_name]['reactions'][r_id] = invariant_func(rc)
+
+        end_time = time.time()
+        graph_invariant_values[invariant_name]['execution_time_ms'] = (end_time - start_time) * 1000
+        return graph_invariant_values
