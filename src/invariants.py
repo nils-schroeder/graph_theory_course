@@ -29,7 +29,7 @@ def weisfeiler_lehman_graph_hash(G: nx.Graph, iterations: int = 3) -> str:
     for node, data in G.nodes(data=True):
         charge = data.get('charge', '')
         element = data.get('element', '')
-        G.nodes[node]['combined'] = f"{charge}{element}"
+        G.nodes[node]['combined'] = f"{charge}{element}"  # Todo rethink in-place modification
 
     return nx.weisfeiler_lehman_graph_hash(
         G,
@@ -45,6 +45,6 @@ def node_and_edge_label_histogram(G: nx.Graph) -> tuple[tuple[str, str, tuple[st
         charge = node_data.get('charge', '')
         element = node_data.get('element', '')
         edge_labels = tuple(sorted(
-            [edge_data.get('order', '') for edge, edge_data in G.edges(node, data=True)]))
+            [edge_data.get('order', '') for _, _, edge_data in G.edges(node, data=True)]))
         histogram.append((charge, element, edge_labels))
     return tuple(sorted(histogram))
