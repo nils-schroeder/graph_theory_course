@@ -43,7 +43,7 @@ def weisfeiler_lehman_graph_hash(G: nx.Graph, iterations: int = 3) -> str:
     )
 
 
-def node_and_edge_label_histogram(G: nx.Graph) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
+def node_label_with_edges_histogram(G: nx.Graph):  # Todo type hint
     histogram = []
     for node, node_data in G.nodes(data=True):
         charge = node_data.get('charge', '')
@@ -51,4 +51,30 @@ def node_and_edge_label_histogram(G: nx.Graph) -> tuple[tuple[str, str, tuple[st
         edge_labels = tuple(sorted(
             [edge_data.get('order', '') for _, _, edge_data in G.edges(node, data=True)]))
         histogram.append((charge, element, edge_labels))
+    return tuple(sorted(histogram))
+
+
+def node_label_histogram(G: nx.Graph):  # Todo type hint
+    histogram = []
+    for node, node_data in G.nodes(data=True):
+        charge = node_data.get('charge', '')
+        element = node_data.get('element', '')
+        histogram.append((charge, element))
+    return tuple(sorted(histogram))
+
+
+def edge_label_with_nodes_histogram(G: nx.Graph):  # Todo type hint
+    def extract_node_label(node):
+        return G.nodes[node]['charge'], G.nodes[node]['element']
+
+    histogram = []
+    for u, v, edge_data in G.edges(data=True):
+        labels = sorted([extract_node_label(u), extract_node_label(v)])
+        labels.append(edge_data.get('order', ''))
+        histogram.append(tuple(labels))
+
+    return tuple(sorted(histogram))
+
+def edge_label_histogram(G: nx.Graph):  # Todo type hint
+    histogram = [edge_data.get('order', '') for _, _, edge_data in G.edges(data=True)]
     return tuple(sorted(histogram))
