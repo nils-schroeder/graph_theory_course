@@ -1,13 +1,13 @@
+import random
 import time
 from collections import defaultdict
 from typing import Callable, Any
 
 import networkx as nx
-import pandas as pd
 
 
 def extract_reaction_centers(
-        data: list,
+        data: list[dict[str, Any]],
         r_id_key: str,
         l_depth: int = 0
 ) -> dict[str, nx.Graph]:
@@ -24,13 +24,13 @@ def extract_single_reaction_center(its_graph, l_depth=0):
     rc_edges = set()
     for (u, v, d) in its_graph.edges(data=True):
         if d["standard_order"] != 0:
-            rc_edges = rc_edges | {(u, v)}
+            rc_edges |= {(u, v)}
 
     rc_subgraph = nx.edge_subgraph(its_graph, rc_edges)
 
     for _ in range(l_depth):
         for n in rc_subgraph.nodes:
-            rc_edges = rc_edges | set(its_graph.edges(n))
+            rc_edges |= set(its_graph.edges(n))
         rc_subgraph = nx.edge_subgraph(its_graph, rc_edges)
 
     return rc_subgraph.copy()
@@ -102,7 +102,7 @@ def cluster_by_single_invariant_combination(
 
 def benchmark_invariant_clusters(
         invariant_clusters: dict[str, dict[str, float | dict[Any, list[str]]]],
-) -> pd.DataFrame:
+) -> dict[str, dict[str, float | int]]:
     cluster_benchmarks = dict()
 
     for invariant_name, invariant_cluster_data in invariant_clusters.items():
@@ -114,32 +114,25 @@ def benchmark_invariant_clusters(
             cluster_variance += len(cluster) ** 2
 
         cluster_benchmarks[invariant_name] = {
-            "execution_time_ms": execution_time_ms,
-            "num_clusters": len(clusters),
-            "num_clusters/ms": len(clusters) / execution_time_ms,
-            "variance": cluster_variance,
-            "variance*ms": cluster_variance * execution_time_ms
+            "invariance_execution_time_ms": execution_time_ms,
+            "invariance_num_clusters": len(clusters),
+            "invariance_num_clusters/ms": len(clusters) / execution_time_ms,
+            "invariance_variance": cluster_variance,
+            "invariance_variance*ms": cluster_variance * execution_time_ms
         }
 
-    return pd.DataFrame.from_dict(cluster_benchmarks).T
+    return cluster_benchmarks
 
 
 def cluster_invariant_clusters_by_isomorphism(
         reaction_centers: dict[str, nx.Graph],
         invariant_clusters: dict[str, dict[str, float | dict[Any, list[str]]]],
-        include_no_invariant: bool = True,
-) -> dict[str, dict[str, int | float | dict[str, list[str]]]]:
+) -> dict[str, dict[str, float | int | dict[str, list[str]]]]:
     isomorphism_clusters = dict()
 
     for invariant_name, invariant_cluster_data in invariant_clusters.items():
         prefiltered_clusters = invariant_cluster_data["clusters"]
         isomorphism_clusters[invariant_name] = cluster_by_isomorphism(reaction_centers, prefiltered_clusters)
-
-    if include_no_invariant:
-        trivial_cluster = {
-            "trivial": list(reaction_centers.keys()),
-        }
-        isomorphism_clusters["no_invariant"] = cluster_by_isomorphism(reaction_centers, trivial_cluster)
 
     return isomorphism_clusters
 
@@ -183,7 +176,7 @@ def cluster_by_isomorphism(
 
 def benchmark_isomorphism_clusters(
         isomorphism_clusters: dict[str, dict[str, int | float | dict[str, list[str]]]],
-) -> pd.DataFrame:
+) -> dict[str, dict[str, float | int]]:
     cluster_benchmarks = dict()
 
     for invariant_name, isomorphism_cluster_data in isomorphism_clusters.items():
@@ -192,9 +185,47 @@ def benchmark_isomorphism_clusters(
         isomorphism_check_count = isomorphism_cluster_data['isomorphism_check_count']
 
         cluster_benchmarks[invariant_name] = {
-            "execution_time_ms": execution_time_ms,
+            "isomorphism_execution_time_ms": execution_time_ms,
             "isomorphism_check_count": isomorphism_check_count,
-            "num_clusters": len(clusters),
+            "isomorphism_num_clusters": len(clusters),
         }
 
-    return pd.DataFrame.from_dict(cluster_benchmarks).T
+    return cluster_benchmarks
+
+
+def run_experiment(
+        data: list[dict[str, Any]],
+        r_id_key: str,
+        invariant_functions: dict[str, Callable[[nx.Graph], Any]],
+        invariant_combinations: list[list[str]],
+        max_l_depth: int,
+        sample_sizes: list[float],
+        num_runs: int,
+        include_clustering_by_isomorphism: bool,
+):
+    benchmarks = dict()
+
+    for l_depth in range(0, max_l_depth + 1):
+        reaction_centers = extract_reaction_centers(data, r_id_key, l_depth)
+
+        for sample_size in sample_sizes:
+            for run in range(1, num_runs + 1):
+                sample_keys = random.sample(list(reaction_centers.keys()), int(sample_size * len(reaction_centers)))
+                sample_reaction_centers = {r_id: reaction_centers[r_id] for r_id in sample_keys}
+
+                invariant_values = calculate_invariant_values(sample_reaction_centers, invariant_functions)
+                invariant_clusters = cluster_by_invariant_combinations(invariant_values, invariant_combinations)
+                benchmark = benchmark_invariant_clusters(invariant_clusters)
+
+                if include_clustering_by_isomorphism:
+                    isomorphism_clusters = cluster_invariant_clusters_by_isomorphism(reaction_centers,
+                                                                                     invariant_clusters)
+                    isomorphism_benchmark = benchmark_isomorphism_clusters(isomorphism_clusters)
+
+                    for invariant_name in benchmark.keys() & isomorphism_benchmark.keys():
+                        benchmark[invariant_name] |= isomorphism_benchmark[invariant_name]
+
+                for invariant_name, benchmark in benchmark.items():
+                    benchmarks[(l_depth, sample_size, run, invariant_name)] = benchmark
+
+    return benchmarks

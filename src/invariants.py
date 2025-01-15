@@ -2,6 +2,10 @@ import networkx as nx
 from numpy.linalg import matrix_rank
 
 
+def no_invariant(G: nx.Graph) -> str:
+    return "trivial_cluster"
+
+
 def vertex_count(G: nx.Graph) -> int:
     return G.number_of_nodes()
 
