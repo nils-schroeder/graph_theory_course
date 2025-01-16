@@ -3,3 +3,5 @@ networkx
 synutility
 jupyter
 pandas
+plotly
+seaborn
